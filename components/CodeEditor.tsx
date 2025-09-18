@@ -42,6 +42,10 @@ import {
   X,
 } from "lucide-react";
 import { Badge } from "./ui/badge";
+import { ComicText } from "./ui/comic-text";
+import { AnimatedShinyText } from "./ui/animated-shiny-text";
+import { AuroraText } from "./ui/aurora-text";
+import { AnimatedGradientText } from "./ui/animated-gradient-text";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -422,8 +426,8 @@ To implement real C++ execution, consider:
               </h1>
             </div>
             <Separator orientation="vertical" className="h-6 hidden md:block" />
-            <p className="text-xs md:text-sm text-muted-foreground hidden md:block">
-              By Ansh Sharma
+            <p onClick={()=>{window.open('https://anshsx.me')}} className="text-xs cursor-pointer md:text-sm underline underline-offset-2 text-muted-foreground hidden md:block">
+              By <AnimatedGradientText>Ansh Sharma</AnimatedGradientText>
             </p>
           </div>
 
@@ -440,7 +444,7 @@ To implement real C++ execution, consider:
             )}
 
             {/* Language Selector */}
-            <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+            {/* <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
               <SelectTrigger className="w-[100px] md:w-[120px]">
                 <SelectValue />
               </SelectTrigger>
@@ -451,7 +455,7 @@ To implement real C++ execution, consider:
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select> */}
 
             {/* Theme Selector - Hidden on mobile */}
             <Select value={theme} onValueChange={setTheme}>
