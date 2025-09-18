@@ -539,7 +539,7 @@ _out + (("\\n" + _err) if _err else "")
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <div className="border-b bg-card p-2 md:p-4">
+      <div className="border-b bg-card p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 md:gap-4">
             <div className="flex items-center gap-2">
@@ -673,7 +673,7 @@ _out + (("\\n" + _err) if _err else "")
             </div>
 
             {/* Terminal Panel - Always visible on mobile */}
-            <div className="h-[45vh] border-t">
+            <div className="h-[45vh] border-t rounded-t-2xl">
               <div className="h-full p-2 flex flex-col bg-muted/20">
                 {/* Action Buttons */}
                 <div className="flex gap-2 mb-3">
@@ -703,7 +703,7 @@ _out + (("\\n" + _err) if _err else "")
 
                   <Dialog open={complexityDialogOpen} onOpenChange={setComplexityDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" className="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white" size="sm">
                         <BarChart3 className="h-4 w-4" />
                       </Button>
                     </DialogTrigger>
@@ -893,7 +893,7 @@ _out + (("\\n" + _err) if _err else "")
 
                             <Dialog open={complexityDialogOpen} onOpenChange={setComplexityDialogOpen}>
                               <DialogTrigger asChild>
-                                <Button variant="outline">
+                                <Button variant="outline" className="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white">
                                   <BarChart3 className="h-4 w-4 mr-2" />
                                   Analyze
                                 </Button>
