@@ -40,12 +40,21 @@ import {
   MoreHorizontal,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { ComicText } from "./ui/comic-text";
 import { AnimatedShinyText } from "./ui/animated-shiny-text";
 import { AuroraText } from "./ui/aurora-text";
 import { AnimatedGradientText } from "./ui/animated-gradient-text";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -59,7 +68,6 @@ declare global {
 
 const LANGUAGES = [
   { id: "python", name: "Python", extension: ".py" },
-  { id: "cpp", name: "C++", extension: ".cpp" },
 ];
 
 const EDITOR_THEMES = [
@@ -91,35 +99,6 @@ for i in range(5):
     print(f"Square of {i} is {i**2}")
 `;
 
-const DEFAULT_CPP_CODE = `// C++ Compiler - Enhanced IDE
-// Try this example:
-
-#include <iostream>
-#include <vector>
-using namespace std;
-
-int fibonacci(int n) {
-    if (n <= 1) return n;
-    return fibonacci(n-1) + fibonacci(n-2);
-}
-
-int main() {
-    int num;
-    cout << "Enter a number: ";
-    cin >> num;
-    
-    int result = fibonacci(num);
-    cout << "Fibonacci(" << num << ") = " << result << endl;
-    
-    // Additional examples
-    for (int i = 0; i < 5; i++) {
-        cout << "Square of " << i << " is " << i*i << endl;
-    }
-    
-    return 0;
-}
-`;
-
 export default function CodeEditor() {
   const { theme, setTheme } = useTheme();
   const [pyodide, setPyodide] = useState<any | null>(null);
@@ -128,11 +107,10 @@ export default function CodeEditor() {
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
 
   // Language state
-  const [selectedLanguage, setSelectedLanguage] = useLocalStorage<string>("selected-language", "python");
+  const [selectedLanguage] = useState<string>("python");
   
   // Persist settings in localStorage
   const [pythonCode, setPythonCode] = useLocalStorage<string>("python-code", DEFAULT_PYTHON_CODE);
-  const [cppCode, setCppCode] = useLocalStorage<string>("cpp-code", DEFAULT_CPP_CODE);
   const [stdin, setStdin] = useLocalStorage<string>("stdin-input", "8");
   const [output, setOutput] = useState<string>("");
   const [running, setRunning] = useState(false);
@@ -148,16 +126,13 @@ export default function CodeEditor() {
     "execution-history",
     []
   );
+  const [complexityDialogOpen, setComplexityDialogOpen] = useState(false);
   const editorRef = useRef<any>(null);
 
-  // Get current code based on selected language
-  const getCurrentCode = () => selectedLanguage === "python" ? pythonCode : cppCode;
+  // Get current code - simplified since only Python is supported
+  const getCurrentCode = () => pythonCode;
   const setCurrentCode = (code: string) => {
-    if (selectedLanguage === "python") {
-      setPythonCode(code);
-    } else {
-      setCppCode(code);
-    }
+    setPythonCode(code);
   };
 
   // Check if mobile
@@ -165,8 +140,9 @@ export default function CodeEditor() {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
+      // On mobile, always show the right panel
       if (mobile) {
-        setRightPanelVisible(false);
+        setRightPanelVisible(true);
       }
     };
     
@@ -220,12 +196,6 @@ export default function CodeEditor() {
   // run code (capture stdin/stdout)
   const runCode = useCallback(async () => {
     const currentCode = getCurrentCode();
-    
-    if (selectedLanguage === "cpp") {
-      // C++ execution using online compiler API
-      await runCppCode(currentCode);
-      return;
-    }
     
     if (!pyodide) {
       setOutput("Pyodide not loaded yet.");
@@ -286,120 +256,272 @@ _out + (("\\n" + _err) if _err else "")
     } finally {
       setRunning(false);
     }
-  }, [pyodide, getCurrentCode, stdin, setExecutionHistory, selectedLanguage]);
+  }, [pyodide, getCurrentCode, stdin, setExecutionHistory]);
 
-  // C++ execution function
-  const runCppCode = async (code: string) => {
-    setRunning(true);
-    setOutput("Compiling and running C++...");
-
+  // Complexity analysis function
+  const analyzeComplexity = useCallback((code: string) => {
     try {
-      // For demonstration, we'll use a basic C++ interpreter simulation
-      // In a real implementation, you would use:
-      // 1. Emscripten/WebAssembly for client-side compilation
-      // 2. Judge0 API, Replit API, or similar service
-      // 3. Your own backend service
+      let complexity = "O(1)";
+      let description = "Constant time - basic operations";
+      let details: string[] = [];
 
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate compilation time
+      // Analyze nested loops
+      const nestedLoops = analyzeNestedLoops(code);
+      const recursion = analyzeRecursion(code);
+      const dataStructures = analyzeDataStructures(code);
 
-      // Basic pattern matching for simple C++ programs
-      let output = "";
-      
-      // Extract main function content
-      const mainMatch = code.match(/int\s+main\s*\([^)]*\)\s*{([\s\S]*?)}/);
-      if (!mainMatch) {
-        setOutput("Error: No main function found in C++ code");
-        return;
+      if (recursion.hasRecursion) {
+        if (recursion.type === "fibonacci" || recursion.type === "exponential") {
+          complexity = "O(2^n)";
+          description = "Exponential time - exponential growth with input";
+          details.push("Recursive function with multiple calls per recursion");
+          details.push("Consider using dynamic programming for optimization");
+        } else if (recursion.type === "linear") {
+          complexity = "O(n)";
+          description = "Linear time - single recursive call";
+          details.push("Linear recursion detected");
+        } else if (recursion.type === "factorial") {
+          complexity = "O(n!)";
+          description = "Factorial time - extremely slow for large inputs";
+          details.push("Factorial algorithm detected");
+        }
+      } else if (nestedLoops.count >= 3) {
+        complexity = "O(n³)";
+        description = "Cubic time - three nested loops";
+        details.push(`${nestedLoops.count} levels of nested loops detected`);
+      } else if (nestedLoops.count === 2) {
+        complexity = "O(n²)";
+        description = "Quadratic time - two nested loops";
+        details.push("Nested loops detected - quadratic growth");
+      } else if (nestedLoops.count === 1) {
+        complexity = "O(n)";
+        description = "Linear time - single loop";
+        details.push("Single loop detected - linear growth");
       }
 
-      // Simple simulation for basic operations
-      if (code.includes('cout')) {
-        // Extract cout statements
-        const coutMatches = code.match(/cout\s*<<\s*([^;]+);/g);
-        if (coutMatches) {
-          coutMatches.forEach(match => {
-            const content = match.replace(/cout\s*<<\s*/, '').replace(/;$/, '');
-            // Basic string and variable simulation
-            if (content.includes('"')) {
-              const stringContent = content.match(/"([^"]*)"/g);
-              if (stringContent) {
-                output += stringContent.map(s => s.replace(/"/g, '')).join('') + '\n';
-              }
-            } else if (content.includes('endl')) {
-              output += '\n';
-            }
-          });
+      // Check for sorting algorithms
+      if (code.includes("sort(") || code.includes(".sort")) {
+        complexity = "O(n log n)";
+        description = "Linearithmic time - efficient sorting";
+        details.push("Built-in sorting algorithm detected");
+      }
+
+      // Check for search operations
+      if (code.includes("in ") && code.includes("list")) {
+        if (complexity === "O(1)") {
+          complexity = "O(n)";
+          description = "Linear time - list search";
+          details.push("Linear search in list detected");
         }
       }
 
-      // Handle simple input simulation
-      if (code.includes('cin')) {
-        const inputLines = stdin.split('\n').filter((line: string) => line.trim());
-        if (inputLines.length > 0) {
-          output += `Input received: ${inputLines.join(', ')}\n`;
-        }
+      // Data structure considerations
+      if (dataStructures.length > 0) {
+        details.push(`Data structures used: ${dataStructures.join(", ")}`);
       }
 
-      // Handle fibonacci example specifically
-      if (code.includes('fibonacci') && stdin) {
-        const num = parseInt(stdin.trim());
-        if (!isNaN(num) && num >= 0) {
-          const fib = (n: number): number => n <= 1 ? n : fib(n-1) + fib(n-2);
-          output += `Enter number: ${num}\n`;
-          output += `Fibonacci(${num}) = ${fib(Math.min(num, 35))}\n`; // Limit for performance
-        }
-      }
-
-      // Handle calculator example
-      if (code.includes('switch') && code.includes('operator')) {
-        const inputParts = stdin.trim().split(/\s+/);
-        if (inputParts.length >= 3) {
-          const a = parseFloat(inputParts[0]);
-          const op = inputParts[1];
-          const b = parseFloat(inputParts[2]);
-          
-          output += `Enter expression (a operator b): ${a} ${op} ${b}\n`;
-          
-          switch(op) {
-            case '+': output += `Result: ${a + b}\n`; break;
-            case '-': output += `Result: ${a - b}\n`; break;
-            case '*': output += `Result: ${a * b}\n`; break;
-            case '/': 
-              if (b !== 0) output += `Result: ${a / b}\n`;
-              else output += "Error: Division by zero!\n";
-              break;
-            default: output += "Invalid operator!\n";
-          }
-        }
-      }
-
-      // Handle sorting example
-      if (code.includes('vector') && code.includes('sort')) {
-        output += "Original: 64 34 25 12 22 11 90\n";
-        output += "Sorted: 11 12 22 25 34 64 90\n";
-      }
-
-      if (!output) {
-        output = `C++ Program Executed Successfully!
-
-Note: This is a demonstration C++ interpreter.
-For full C++ support, integration with a real compiler would be needed.
-
-Your code was analyzed and would compile correctly.
-Input provided: ${stdin || '(none)'}
-
-To implement real C++ execution, consider:
-• Emscripten for WebAssembly compilation
-• Online compiler APIs (Judge0, Sphere Engine)
-• Server-side compilation services`;
-      }
-
-      setOutput(output);
+      return {
+        complexity,
+        description,
+        details,
+        worstCase: complexity,
+        bestCase: nestedLoops.count > 0 ? "O(1)" : "O(1)",
+        averageCase: complexity,
+      };
     } catch (error) {
-      setOutput(`C++ Execution Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setRunning(false);
+      return {
+        complexity: "O(?)",
+        description: "Unable to analyze complexity",
+        details: ["Code analysis failed"],
+        worstCase: "O(?)",
+        bestCase: "O(?)",
+        averageCase: "O(?)",
+      };
     }
+  }, []);
+
+  // Helper function to analyze nested loops
+  const analyzeNestedLoops = (code: string) => {
+    const lines = code.split('\n');
+    let maxNesting = 0;
+    let currentNesting = 0;
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('for ') || trimmed.startsWith('while ')) {
+        currentNesting++;
+        maxNesting = Math.max(maxNesting, currentNesting);
+      } else if (trimmed === '' || (!trimmed.startsWith(' ') && currentNesting > 0)) {
+        // Reset nesting when we exit scope (simplified)
+        currentNesting = Math.max(0, currentNesting - 1);
+      }
+    }
+    
+    return { count: maxNesting };
+  };
+
+  // Helper function to analyze recursion
+  const analyzeRecursion = (code: string) => {
+    const functionMatches = code.match(/def\s+(\w+)\s*\(/g);
+    if (!functionMatches) return { hasRecursion: false, type: "none" };
+
+    const functionNames = functionMatches.map(match => 
+      match.replace(/def\s+(\w+)\s*\(/, '$1')
+    );
+
+    for (const funcName of functionNames) {
+      const funcPattern = new RegExp(`def\\s+${funcName}\\s*\\([^)]*\\):[\\s\\S]*?(?=\\ndef|\\nclass|$)`, 'g');
+      const funcMatch = code.match(funcPattern);
+      
+      if (funcMatch && funcMatch[0].includes(funcName + '(')) {
+        // Check for different recursion patterns
+        if (funcName.includes('fibonacci') || 
+            funcMatch[0].includes(`${funcName}(n-1)`) && funcMatch[0].includes(`${funcName}(n-2)`)) {
+          return { hasRecursion: true, type: "fibonacci" };
+        }
+        if (funcMatch[0].includes('factorial') || 
+            funcMatch[0].includes(`${funcName}(n-1)`) && funcMatch[0].includes('n *')) {
+          return { hasRecursion: true, type: "factorial" };
+        }
+        if (funcMatch[0].includes(`${funcName}(`)) {
+          return { hasRecursion: true, type: "linear" };
+        }
+      }
+    }
+
+    return { hasRecursion: false, type: "none" };
+  };
+
+  // Helper function to analyze data structures
+  const analyzeDataStructures = (code: string) => {
+    const structures: string[] = [];
+    
+    if (code.includes('list(') || code.includes('[]')) structures.push("List");
+    if (code.includes('dict(') || code.includes('{}')) structures.push("Dictionary");
+    if (code.includes('set(')) structures.push("Set");
+    if (code.includes('tuple(') || code.includes('(')) structures.push("Tuple");
+    
+    return structures;
+  };
+
+  // Generate data points for complexity graph
+  const generateComplexityData = (complexity: string) => {
+    const data: { x: number; y: number }[] = [];
+    for (let n = 1; n <= 10; n++) {
+      let y: number;
+      switch (complexity) {
+        case "O(1)":
+          y = 1;
+          break;
+        case "O(log n)":
+          y = Math.log2(n);
+          break;
+        case "O(n)":
+          y = n;
+          break;
+        case "O(n log n)":
+          y = n * Math.log2(n);
+          break;
+        case "O(n²)":
+          y = n * n;
+          break;
+        case "O(n³)":
+          y = n * n * n;
+          break;
+        case "O(2^n)":
+          y = Math.pow(2, Math.min(n, 6)); // Limit to prevent overflow
+          break;
+        case "O(n!)":
+          y = factorial(Math.min(n, 6)); // Limit to prevent overflow
+          break;
+        default:
+          y = n;
+      }
+      data.push({ x: n, y: Math.min(y, 1000) }); // Cap at 1000 for display
+    }
+    return data;
+  };
+
+  const factorial = (n: number): number => {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+  };
+
+  // Simple SVG graph component
+  const ComplexityGraph = ({ complexity }: { complexity: string }) => {
+    const data = generateComplexityData(complexity);
+    const maxY = Math.max(...data.map(d => d.y));
+    const width = 300;
+    const height = 200;
+    const padding = 40;
+
+    const getX = (x: number) => padding + (x - 1) * ((width - 2 * padding) / 9);
+    const getY = (y: number) => height - padding - (y / maxY) * (height - 2 * padding);
+
+    const pathData = data
+      .map((point, index) => 
+        `${index === 0 ? 'M' : 'L'} ${getX(point.x)} ${getY(point.y)}`
+      )
+      .join(' ');
+
+    return (
+      <div className="p-4 bg-muted/20 rounded-lg">
+        <h4 className="text-sm font-medium mb-2 text-center">Growth Visualization</h4>
+        <svg width={width} height={height} className="border rounded">
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map(ratio => (
+            <line
+              key={ratio}
+              x1={padding}
+              y1={height - padding - ratio * (height - 2 * padding)}
+              x2={width - padding}
+              y2={height - padding - ratio * (height - 2 * padding)}
+              stroke="#e5e7eb"
+              strokeWidth="1"
+            />
+          ))}
+          
+          {/* Axes */}
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} 
+                stroke="#374151" strokeWidth="2" />
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} 
+                stroke="#374151" strokeWidth="2" />
+          
+          {/* Complexity curve */}
+          <path
+            d={pathData}
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          
+          {/* Data points */}
+          {data.map((point, index) => (
+            <circle
+              key={index}
+              cx={getX(point.x)}
+              cy={getY(point.y)}
+              r="4"
+              fill="#3b82f6"
+            />
+          ))}
+          
+          {/* Labels */}
+          <text x={width / 2} y={height - 10} textAnchor="middle" className="text-xs fill-gray-600">
+            Input Size (n)
+          </text>
+          <text x={15} y={height / 2} textAnchor="middle" className="text-xs fill-gray-600" 
+                transform={`rotate(-90, 15, ${height / 2})`}>
+            Operations
+          </text>
+        </svg>
+        <p className="text-xs text-muted-foreground mt-2 text-center">
+          Time complexity: <span className="font-mono font-bold text-blue-600">{complexity}</span>
+        </p>
+      </div>
+    );
   };
 
   // keyboard shortcut: ctrl/cmd + Enter to run
@@ -422,7 +544,7 @@ To implement real C++ execution, consider:
           <div className="flex items-center gap-2 md:gap-4">
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-bold">
-                {selectedLanguage === "python" ? "🐍 Python" : "⚡ C++"} Compiler
+                🐍 Python Compiler
               </h1>
             </div>
             <Separator orientation="vertical" className="h-6 hidden md:block" />
@@ -432,31 +554,6 @@ To implement real C++ execution, consider:
           </div>
 
           <div className="flex items-center gap-1 md:gap-2">
-            {/* Mobile menu toggle */}
-            {isMobile && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setRightPanelVisible(!rightPanelVisible)}
-              >
-                {rightPanelVisible ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-              </Button>
-            )}
-
-            {/* Language Selector */}
-            {/* <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-              <SelectTrigger className="w-[100px] md:w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGES.map((lang) => (
-                  <SelectItem key={lang.id} value={lang.id}>
-                    {lang.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select> */}
-
             {/* Theme Selector - Hidden on mobile */}
             <Select value={theme} onValueChange={setTheme}>
               <SelectTrigger className="w-[100px] md:w-[120px] hidden md:flex">
@@ -524,29 +621,29 @@ To implement real C++ execution, consider:
       {/* Main Resizable Layout */}
       <div className="flex-1">
         {isMobile ? (
-          // Mobile Layout - Stack panels vertically
+          // Mobile Layout - Stack panels vertically with always visible terminal
           <div className="h-full flex flex-col">
             {/* Editor Panel */}
             <div className="flex-1 flex flex-col">
               {/* Language indicator */}
               <div className="px-4 py-2 bg-muted/30 border-b flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${selectedLanguage === "python" ? "bg-green-500" : "bg-blue-500"}`}></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
                 <span className="text-sm font-medium text-muted-foreground">
-                  {LANGUAGES.find(l => l.id === selectedLanguage)?.name}
+                  Python
                 </span>
                 <span className="text-xs text-muted-foreground">•</span>
                 <span className="text-xs text-muted-foreground">
-                  main{LANGUAGES.find(l => l.id === selectedLanguage)?.extension}
+                  main.py
                 </span>
               </div>
 
               {/* Editor */}
-              <div className="flex-1 p-2">
-                <div className="h-[60vh] rounded-xl overflow-hidden border">
+              <div className="flex-1 flex flex-col">
+                <div className="h-[45vh] rounded-t-xl overflow-hidden border-x border-t">
                   <MonacoEditor
                     height="100%"
-                    defaultLanguage={selectedLanguage === "python" ? "python" : "cpp"}
-                    language={selectedLanguage === "python" ? "python" : "cpp"}
+                    defaultLanguage="python"
+                    language="python"
                     defaultValue={getCurrentCode()}
                     value={getCurrentCode()}
                     onChange={(val) => setCurrentCode(val ?? "")}
@@ -557,7 +654,7 @@ To implement real C++ execution, consider:
                       minimap: { enabled: false }, // Always off on mobile
                       automaticLayout: true,
                       wordWrap: "on", // Always on for mobile
-                      scrollBeyondLastLine: true,
+                      scrollBeyondLastLine: false,
                       renderLineHighlight: "none",
                       lineNumbers: "on",
                       glyphMargin: true,
@@ -568,22 +665,22 @@ To implement real C++ execution, consider:
                       insertSpaces: true,
                       detectIndentation: true,
                       roundedSelection: true,
-                      padding: { top: 20, bottom: 10 },
+                      padding: { top: 10, bottom: 10 },
                     }}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Right Panel - Collapsible on mobile */}
-            {rightPanelVisible && (
-              <div className="h-96 border-t">
-                <div className="h-full p-4 flex flex-col">
-                  {/* Run Button */}
+            {/* Terminal Panel - Always visible on mobile */}
+            <div className="h-[45vh] border-t">
+              <div className="h-full p-2 flex flex-col bg-muted/20">
+                {/* Action Buttons */}
+                <div className="flex gap-2 mb-3">
                   <Button
                     onClick={runCode}
                     disabled={loadingPyodide || running}
-                    className="w-full mb-4"
+                    className="flex-1"
                     variant={loadingPyodide || running ? "secondary" : "default"}
                   >
                     {loadingPyodide ? (
@@ -599,34 +696,110 @@ To implement real C++ execution, consider:
                     ) : (
                       <>
                         <Play className="h-4 w-4 mr-2" />
-                        Run Code
+                        Run
                       </>
                     )}
                   </Button>
 
-                  {/* Input and Output in tabs-like layout */}
-                  <div className="flex-1 flex flex-col">
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      <div className="p-3 bg-secondary rounded">
-                        <label className="text-xs font-medium mb-1 block">Input</label>
-                        <textarea
-                          className="w-full h-20 p-2 rounded bg-background border text-xs resize-none"
-                          value={stdin}
-                          onChange={(e) => setStdin(e.target.value)}
-                          placeholder="Input..."
-                        />
-                      </div>
-                      <div className="p-3 bg-secondary rounded">
-                        <label className="text-xs font-medium mb-1 block">Output</label>
-                        <div className="w-full h-20 p-2 bg-black rounded text-green-400 text-xs overflow-auto font-mono">
-                          {output || "Output will appear here..."}
-                        </div>
-                      </div>
+                  <Dialog open={complexityDialogOpen} onOpenChange={setComplexityDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <BarChart3 className="h-4 w-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>🔍 Complexity Analysis</DialogTitle>
+                        <DialogDescription>
+                          Time complexity analysis of your Python code
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      {(() => {
+                        const analysis = analyzeComplexity(getCurrentCode());
+                        return (
+                          <div className="space-y-4">
+                            <div className="text-center">
+                              <div className="text-3xl font-bold text-blue-600 mb-2">
+                                {analysis.complexity}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {analysis.description}
+                              </p>
+                            </div>
+
+                            <ComplexityGraph complexity={analysis.complexity} />
+
+                            <div className="grid grid-cols-1 gap-2 text-center">
+                              <div className="p-2 bg-green-50 dark:bg-green-950 rounded-lg">
+                                <div className="font-semibold text-green-700 dark:text-green-400 text-xs">Best Case</div>
+                                <div className="font-mono text-sm">{analysis.bestCase}</div>
+                              </div>
+                              <div className="p-2 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
+                                <div className="font-semibold text-yellow-700 dark:text-yellow-400 text-xs">Average Case</div>
+                                <div className="font-mono text-sm">{analysis.averageCase}</div>
+                              </div>
+                              <div className="p-2 bg-red-50 dark:bg-red-950 rounded-lg">
+                                <div className="font-semibold text-red-700 dark:text-red-400 text-xs">Worst Case</div>
+                                <div className="font-mono text-sm">{analysis.worstCase}</div>
+                              </div>
+                            </div>
+
+                            {analysis.details.length > 0 && (
+                              <div className="p-3 bg-muted/50 rounded-lg">
+                                <h4 className="font-semibold mb-2 text-sm">Analysis Details:</h4>
+                                <ul className="space-y-1">
+                                  {analysis.details.map((detail, index) => (
+                                    <li key={index} className="text-xs text-muted-foreground flex items-start gap-2">
+                                      <span className="text-blue-500 mt-0.5">•</span>
+                                      {detail}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {/* Input and Output combined for mobile */}
+                <div className="flex-1 flex flex-col gap-2">
+                  <div className="flex gap-2 h-20">
+                    <div className="flex-1 p-2 bg-background rounded border">
+                      <label className="text-xs font-medium mb-1 block text-muted-foreground">Input</label>
+                      <textarea
+                        className="w-full h-12 p-1 rounded bg-background border text-xs resize-none"
+                        value={stdin}
+                        onChange={(e) => setStdin(e.target.value)}
+                        placeholder="Input..."
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-1 p-2 bg-background rounded border">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-muted-foreground">Output</label>
+                      <Badge
+                        className="cursor-pointer bg-red-600 hover:bg-red-600 text-white text-xs px-2 py-0"
+                        onClick={() => setOutput("")}
+                      >
+                        Clear
+                      </Badge>
+                    </div>
+                    <div className="w-full h-full bg-black rounded p-2 text-green-400 text-xs overflow-auto font-mono">
+                      {output || (
+                        <span className="text-gray-500">
+                          Output will appear here...
+                          {"\n"}💡 Tip: Use Ctrl + Enter to run quickly
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         ) : (
           // Desktop Layout - Resizable panels
@@ -636,13 +809,13 @@ To implement real C++ execution, consider:
               <div className="h-full flex flex-col">
                 {/* Language indicator */}
                 <div className="px-4 py-2 bg-muted/30 border-b flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${selectedLanguage === "python" ? "bg-green-500" : "bg-blue-500"}`}></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
                   <span className="text-sm font-medium text-muted-foreground">
-                    {LANGUAGES.find(l => l.id === selectedLanguage)?.name}
+                    Python
                   </span>
                   <span className="text-xs text-muted-foreground">•</span>
                   <span className="text-xs text-muted-foreground">
-                    main{LANGUAGES.find(l => l.id === selectedLanguage)?.extension}
+                    main.py
                   </span>
                 </div>
 
@@ -651,8 +824,8 @@ To implement real C++ execution, consider:
                   <div className="h-full rounded-xl overflow-hidden border">
                     <MonacoEditor
                       height="100%"
-                      defaultLanguage={selectedLanguage === "python" ? "python" : "cpp"}
-                      language={selectedLanguage === "python" ? "python" : "cpp"}
+                      defaultLanguage="python"
+                      language="python"
                       defaultValue={getCurrentCode()}
                       value={getCurrentCode()}
                       onChange={(val) => setCurrentCode(val ?? "")}
@@ -718,6 +891,70 @@ To implement real C++ execution, consider:
                               )}
                             </Button>
 
+                            <Dialog open={complexityDialogOpen} onOpenChange={setComplexityDialogOpen}>
+                              <DialogTrigger asChild>
+                                <Button variant="outline">
+                                  <BarChart3 className="h-4 w-4 mr-2" />
+                                  Analyze
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                  <DialogTitle>🔍 Complexity Analysis</DialogTitle>
+                                  <DialogDescription>
+                                    Time complexity analysis of your Python code
+                                  </DialogDescription>
+                                </DialogHeader>
+                                
+                                {(() => {
+                                  const analysis = analyzeComplexity(getCurrentCode());
+                                  return (
+                                    <div className="space-y-6">
+                                      <div className="text-center">
+                                        <div className="text-4xl font-bold text-blue-600 mb-2">
+                                          {analysis.complexity}
+                                        </div>
+                                        <p className="text-lg text-muted-foreground">
+                                          {analysis.description}
+                                        </p>
+                                      </div>
+
+                                      <ComplexityGraph complexity={analysis.complexity} />
+
+                                      <div className="grid grid-cols-3 gap-4 text-center">
+                                        <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                                          <div className="font-semibold text-green-700 dark:text-green-400">Best Case</div>
+                                          <div className="font-mono">{analysis.bestCase}</div>
+                                        </div>
+                                        <div className="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
+                                          <div className="font-semibold text-yellow-700 dark:text-yellow-400">Average Case</div>
+                                          <div className="font-mono">{analysis.averageCase}</div>
+                                        </div>
+                                        <div className="p-3 bg-red-50 dark:bg-red-950 rounded-lg">
+                                          <div className="font-semibold text-red-700 dark:text-red-400">Worst Case</div>
+                                          <div className="font-mono">{analysis.worstCase}</div>
+                                        </div>
+                                      </div>
+
+                                      {analysis.details.length > 0 && (
+                                        <div className="p-4 bg-muted/50 rounded-lg">
+                                          <h4 className="font-semibold mb-2">Analysis Details:</h4>
+                                          <ul className="space-y-1">
+                                            {analysis.details.map((detail, index) => (
+                                              <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
+                                                <span className="text-blue-500 mt-0.5">•</span>
+                                                {detail}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </DialogContent>
+                            </Dialog>
+
                             <div className="flex gap-1">
                               <Button
                                 variant="outline"
@@ -737,12 +974,12 @@ To implement real C++ execution, consider:
                                 onClick={() => {
                                   const currentCode = getCurrentCode();
                                   const blob = new Blob([currentCode], {
-                                    type: selectedLanguage === "python" ? "text/x-python" : "text/x-c++src",
+                                    type: "text/x-python",
                                   });
                                   const url = URL.createObjectURL(blob);
                                   const a = document.createElement("a");
                                   a.href = url;
-                                  a.download = `script${LANGUAGES.find(l => l.id === selectedLanguage)?.extension}`;
+                                  a.download = "script.py";
                                   a.click();
                                   URL.revokeObjectURL(url);
                                 }}
@@ -801,78 +1038,8 @@ print("Sorted:", numbers)`,
 calculator()`,
                                 };
 
-                                const cppExamples: Record<string, string> = {
-                                  fibonacci: `#include <iostream>
-using namespace std;
-
-int fibonacci(int n) {
-    if (n <= 1) return n;
-    return fibonacci(n-1) + fibonacci(n-2);
-}
-
-int main() {
-    int num;
-    cout << "Enter number: ";
-    cin >> num;
-    cout << "Fibonacci(" << num << ") = " << fibonacci(num) << endl;
-    return 0;
-}`,
-                                  sorting: `#include <iostream>
-#include <vector>
-#include <algorithm>
-using namespace std;
-
-int main() {
-    vector<int> numbers = {64, 34, 25, 12, 22, 11, 90};
-    
-    cout << "Original: ";
-    for(int num : numbers) cout << num << " ";
-    cout << endl;
-    
-    // Bubble sort
-    for(int i = 0; i < numbers.size()-1; i++) {
-        for(int j = 0; j < numbers.size()-i-1; j++) {
-            if(numbers[j] > numbers[j+1]) {
-                swap(numbers[j], numbers[j+1]);
-            }
-        }
-    }
-    
-    cout << "Sorted: ";
-    for(int num : numbers) cout << num << " ";
-    cout << endl;
-    
-    return 0;
-}`,
-                                  calculator: `#include <iostream>
-#include <string>
-using namespace std;
-
-int main() {
-    double a, b;
-    char op;
-    
-    cout << "Enter expression (a operator b): ";
-    cin >> a >> op >> b;
-    
-    switch(op) {
-        case '+': cout << "Result: " << a + b << endl; break;
-        case '-': cout << "Result: " << a - b << endl; break;
-        case '*': cout << "Result: " << a * b << endl; break;
-        case '/': 
-            if(b != 0) cout << "Result: " << a / b << endl;
-            else cout << "Error: Division by zero!" << endl;
-            break;
-        default: cout << "Invalid operator!" << endl;
-    }
-    
-    return 0;
-}`,
-                                };
-
-                                const examples = selectedLanguage === "python" ? pythonExamples : cppExamples;
-                                if (examples[example]) {
-                                  setCurrentCode(examples[example]);
+                                if (pythonExamples[example]) {
+                                  setCurrentCode(pythonExamples[example]);
                                 }
                               }}
                             >
@@ -956,10 +1123,7 @@ int main() {
           <span>Lines: {getCurrentCode().split("\n").length}</span>
           <span>Characters: {getCurrentCode().length}</span>
           <span>
-            {selectedLanguage === "python" 
-              ? `Pyodide: ${loadingPyodide ? "Loading..." : "Ready"}`
-              : "C++ Ready"
-            }
+            Pyodide: {loadingPyodide ? "Loading..." : "Ready"}
           </span>
         </div>
         <div className="flex items-center gap-2">
