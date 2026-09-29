@@ -4,6 +4,7 @@ A modern, fast, and resilient in-browser Python IDE built with **Next.js 15**, *
 
 Babel runs Python entirely on the client side with isolated thread execution, interactive `stdin` support, customizable execution timeouts, and hard process termination to prevent infinite loops from freezing the browser.
 
+<img width="1512" height="982" alt="Screenshot 2026-09-30 at 00 44 04" src="https://github.com/user-attachments/assets/0f817d06-9fec-4a7b-b4f8-3bfcc4d447b0" />
 ---
 
 ## ✨ Features
