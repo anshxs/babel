@@ -30,19 +30,10 @@ function Header({ fontSize, setFontSize, timeoutMs, setTimeoutMs }: HeaderProps)
   return (
     <div className="border-0 bg-[#f0f0f0] px-4 pt-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2 md:gap-2">
           <div className="flex items-center gap-2">
             <h1 className="text-lg md:text-xl font-bold">Babel IDE</h1>
           </div>
-          <Separator orientation="vertical" className="h-6 hidden md:block" />
-          <p
-            onClick={() => {
-              window.open("https://github.com/anshxs");
-            }}
-            className="text-xs cursor-pointer md:text-sm underline underline-offset-2 text-muted-foreground hidden md:block"
-          >
-            By <AnimatedGradientText>Ansh Sharma</AnimatedGradientText>
-          </p>
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
